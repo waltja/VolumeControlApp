@@ -1,1 +1,0 @@
-{"apps": {"app0": "spotify.exe", "app1": "discord.exe", "app2": "opera.exe", "app3": "Windows10Universal.exe"}, "volumes": {"spotify.exe": 20, "discord.exe": 100, "opera.exe": 10, "Windows10Universal.exe": 30}}

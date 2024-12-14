@@ -1,1 +1,0 @@
-{"apps": {"app0": "as"}, "volumes": {"as": 0}}
