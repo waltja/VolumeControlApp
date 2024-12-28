@@ -4,8 +4,12 @@ import analogio
 import usb_cdc
 import time
 
-# Define the potentiometer (slide potentiometer motor position)
-potentiometer = analogio.AnalogIn(board.A0)
+# Define the Fader potentiometer (slide potentiometer motor position)
+fader_potentiometer = analogio.AnalogIn(board.A0)
+
+# Define Fader Motor
+fader_motor = digitalio.DigitalInOut(board.D5)
+fader_motor.direction = digitalio.Direction.OUTPUT
 
 # Define buttons (6-step switches)
 buttons = [
@@ -31,18 +35,18 @@ app_volumes = []
 # Track the current app and potentiometer value
 current_app = None
 last_app = -1
-pot_value = 0
+set_point = 0
 last_pot_value = -1
 
 
-def read_potentiometer():
+def read_fader():
     """Read and scale the potentiometer value (0-255)."""
-    return int((potentiometer.value / 65535) * 255)
+    return int((fader_potentiometer.value / 65535) * 255)
 
 
-def set_potentiometer_to_app_value(app_index):
+def set_fader_to_app_value(app_index):
     """Simulate setting the potentiometer value to the app's stored volume."""
-    global pot_value
+    global set_point
     if app_index is not None:
         pot_value = app_volumes[app_index]
 
@@ -107,11 +111,11 @@ while True:
     # If the active app changes, update potentiometer value
     if new_app != current_app and new_app is not None:
         current_app = new_app
-        set_potentiometer_to_app_value(current_app)
-        print(f"Switched to app {current_app}. Potentiometer set to {pot_value}.")
+        set_fader_to_app_value(current_app)
+        print(f"Switched to app {current_app}. Fader set to {set_point}.")
 
     # Read potentiometer value
-    pot_value = read_potentiometer()
+    set_point = read_fader()
 
     # Only send data if the app or pot value changes
     if n is 6:
@@ -129,7 +133,7 @@ while True:
         send_serial_data_volumes()
         print('Sent Periodic')
         last_app = current_app
-        last_pot_value = pot_value
+        last_pot_value = set_point
 
 
     n += 1

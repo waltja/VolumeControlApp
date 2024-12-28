@@ -1,6 +1,6 @@
 import time
 
-from pycaw.api.endpointvolume import IAudioEndpointVolume
+from pycaw.pycaw import ISimpleAudioVolume
 from pycaw.pycaw import AudioUtilities
 
 
@@ -22,8 +22,9 @@ class VolumeController:
         for session in self.sessions:
             if session.Process and session.Process.name() == app_name:
                 try:
-                    volume_interface = session._ctl.QueryInterface(IAudioEndpointVolume)
-                    volume_interface.SetMasterVolumeLevelScalar(volume / 100.0, None)
+                    # Query the ISimpleAudioVolume interface
+                    volume_interface = session._ctl.QueryInterface(ISimpleAudioVolume)
+                    volume_interface.SetMasterVolume(volume / 100.0, None)
                     print(f"Set volume for {app_name} to {volume}%")
                     return True
                 except Exception as e:

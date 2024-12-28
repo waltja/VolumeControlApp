@@ -1,3 +1,5 @@
+import time
+
 import serial_comms
 import volume_control
 
@@ -24,6 +26,8 @@ def run_background_task():
     # Start Volume Control
     controller.volume_control_loop(comms, app_names, callback=callback)
 
+
+from pycaw.api.audioclient import ISimpleAudioVolume
 
 if __name__ == "__main__":
     run_background_task()
