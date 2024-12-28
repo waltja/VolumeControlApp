@@ -9,12 +9,12 @@ potentiometer = analogio.AnalogIn(board.A0)
 
 # Define buttons (6-step switches)
 buttons = [
-    digitalio.DigitalInOut(board.D22),
     digitalio.DigitalInOut(board.D24),
-    digitalio.DigitalInOut(board.D26),
-    digitalio.DigitalInOut(board.D28),
-    digitalio.DigitalInOut(board.D30),
-    digitalio.DigitalInOut(board.D32)
+    digitalio.DigitalInOut(board.D25),
+    digitalio.DigitalInOut(board.D4),
+    digitalio.DigitalInOut(board.D13),
+    digitalio.DigitalInOut(board.D12),
+    digitalio.DigitalInOut(board.D11)
 ]
 
 # Setup buttons as inputs with pull-up resistors
@@ -55,37 +55,50 @@ def read_buttons():
     return None  # No button pressed
 
 
-def send_serial_data():
+def send_serial_data_volumes():
     """Send data over USB serial in JSON format."""
     global app_volumes
     if serial and serial.connected:
         serial.write(f"{app_volumes}\n".encode("utf-8"))
 
+def send_data(data):
+    if serial and serial.connected:
+        serial.write(f"{data}\n".encode("utf-8"))
+
 
 def wait_for_start_signal():
     """Wait for a 'start' command and initialize app volumes."""
-    global app_volumes
-    if serial and serial.connected:
-        print("Waiting for start signal...")
-        while True:
-            if serial.in_waiting > 0:
-                command = serial.readline().decode('utf-8').strip()
-                if command.lower().startswith("start"):
+    global app_volumes, serial
+    while True:
+        if serial and serial.connected:
+            print("Waiting for start signal...")
+            while True:
+                if serial.in_waiting > 0:
+                    command = serial.readline().decode('utf-8').strip()
+                    if command is 'false':
+                        continue
                     # Parse initialization volumes from the command
                     try:
-                        app_volumes = eval(command[5:])  # Extract volumes after 'start'
+                        app_volumes = eval(command)  # Extract volumes
                         if len(app_volumes) != 6:
                             raise ValueError("Expected exactly 6 volume values.")
                         print(f"Start signal received. Initialized volumes: {app_volumes}")
+                        send_data('true')
                         return
                     except Exception as e:
                         print(f"Error parsing volumes: {e}")
                         print("Retrying...")
+                        send_data('false')
+        else:
+            print('No serial connection')
+            print("Retrying...\n")
+            time.sleep(5)
 
 
 # Wait for the start signal and initialize volumes
 wait_for_start_signal()
 
+n = 0
 # Main Loop
 while True:
     # Read the currently active button
@@ -101,9 +114,23 @@ while True:
     pot_value = read_potentiometer()
 
     # Only send data if the app or pot value changes
-    if current_app != last_app or pot_value != last_pot_value:
-        send_serial_data()
+    if n is 6:
+        if serial.connected and serial.in_waiting > 0:
+            command = serial.readline().decode('utf-8').strip()
+            print(command)
+            if command.count('false') > 0:
+                send_data('true')
+        elif not serial.connected:
+            print('Connection lost')
+            wait_for_start_signal()
+        n = 0
+
+    if n%2 is 0:
+        send_serial_data_volumes()
+        print('Sent Periodic')
         last_app = current_app
         last_pot_value = pot_value
 
-    time.sleep(0.1)  # Avoid flooding the serial connection
+
+    n += 1
+    time.sleep(1)  # Avoid flooding the serial connection

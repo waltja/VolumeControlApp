@@ -1,8 +1,7 @@
 import time
 
 from pycaw.api.endpointvolume import IAudioEndpointVolume
-from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume
-from comtypes import CLSCTX_ALL
+from pycaw.pycaw import AudioUtilities
 
 
 class VolumeController:
@@ -40,25 +39,25 @@ class VolumeController:
                 self.refresh_sessions()
 
     # Main loop to process volume updates
-    def volume_control_loop(self, serial_handler, app_names):
+    def volume_control_loop(self, serial_handler, app_names, callback=None):
         """Continuously listens for data from serial_comm and updates app volumes."""
         print("Volume controller initialized.")
-
+        app_volumes = []
         while True:
             # Check for incoming serial data
-            if serial_handler.serial.in_waiting > 0:
+            if app_volumes != serial_handler.volumes:
                 try:
-                    # Read and parse the incoming data as a list
-                    data = serial_handler.serial.readline().decode('utf-8').strip()
-                    app_volumes = eval(data)  # Assumes data is sent as [10, 40, 50, ...]
-
+                    app_volumes = serial_handler.volumes
                     if isinstance(app_volumes, list) and len(app_volumes) == len(app_names):
-                        print(f"Received volume data: {app_volumes}")
+                        if callback:
+                            callback(f"Received volume data: {app_volumes}")
                         self.update_volumes(app_volumes, app_names)
                     else:
-                        print(f"Invalid data format received: {data}")
+                        if callback:
+                            callback(f"Invalid data format received: {serial_handler.volumes}")
                 except Exception as e:
-                    print(f"Error processing serial data: {e}")
+                    if callback:
+                        callback(f"Error processing serial data: {e}")
 
             time.sleep(0.1)  # Small delay to prevent busy-waiting
 

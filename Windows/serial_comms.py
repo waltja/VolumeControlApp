@@ -12,6 +12,7 @@ class SerialHandler:
         self.running = False
         self.thread = None
         self.logs = []
+        self.volumes = []
 
     def log(self, message):
         self.logs.append(message)
@@ -25,11 +26,20 @@ class SerialHandler:
             try:
                 self.serial = serial.Serial(port, self.baudrate, timeout=1)
                 self.log(f"Connected to Feather on port {port}")
-                self.send_data('start'+str(volumes))
+                self.send_data(volumes)
+                while True:
+                    if self.serial.in_waiting > 0:
+                        print(self.serial.readline().decode('utf-8'))
+                        if self.serial.readline().decode('utf-8').count('true') > 0:
+                            break
+                        else:
+                            self.send_data('false')
+                    time.sleep(1)
                 return True
             except serial.SerialException as e:
                 self.log(f"Failed to connect on port {port}: {e}")
         self.serial = None
+        time.sleep(1)
         return False
 
     def start(self):
@@ -53,13 +63,18 @@ class SerialHandler:
                 if not self.connect_to_feather():
                     time.sleep(5)  # Retry every 5 seconds
                     continue
-
             try:
                 if self.serial.in_waiting > 0:
                     data = self.serial.readline().decode('utf-8').strip()
                     self.log(f"Received: {data}")
                     if self.callback:
-                        self.callback(data)
+                        self.callback(f'Received: {data}')
+                    try:
+                        data = eval(data)
+                        if len(data) == 6 and data != self.volumes:
+                            self.volumes = data
+                    except NameError as e:
+                        self.log(f"Serial exception: {e}")
             except serial.SerialException as e:
                 self.log(f"Serial exception: {e}")
                 self.serial.close()
