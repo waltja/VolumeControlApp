@@ -3,9 +3,13 @@ import digitalio
 import analogio
 import usb_cdc
 import time
+import json
 
 # Define the Fader potentiometer (slide potentiometer motor position)
 fader_potentiometer = analogio.AnalogIn(board.A0)
+
+# Define Fader Capacitive Touch Sensor
+fader_touch = analogio.AnalogIn(board.A3)
 
 # Define Fader Motor
 fader_motor = digitalio.DigitalInOut(board.D5)
@@ -13,15 +17,29 @@ fader_motor.direction = digitalio.Direction.OUTPUT
 
 # Define buttons (6-step switches)
 buttons = [
-    digitalio.DigitalInOut(board.D24),
-    digitalio.DigitalInOut(board.D25),
-    digitalio.DigitalInOut(board.D4),
-    digitalio.DigitalInOut(board.D13),
     digitalio.DigitalInOut(board.D12),
-    digitalio.DigitalInOut(board.D11)
+    digitalio.DigitalInOut(board.D11),
+    digitalio.DigitalInOut(board.D10),
+    digitalio.DigitalInOut(board.D9),
+    digitalio.DigitalInOut(board.D8),
+    digitalio.DigitalInOut(board.D7)
 ]
 
-# Setup buttons as inputs with pull-up resistors
+# Define button LEDs
+button_leds = [
+    digitalio.DigitalInOut(board.GP18),
+    digitalio.DigitalInOut(board.GP19),
+    digitalio.DigitalInOut(board.GP20),
+    digitalio.DigitalInOut(board.GP00),
+    digitalio.DigitalInOut(board.GP01),
+    digitalio.DigitalInOut(board.GP06)
+]
+
+# Setup button LEDs as outputs
+for led in button_leds:
+    led.direction = digitalio.Direction.OUTPUT
+
+# Initialize buttons as inputs with pull-up resistors
 for button in buttons:
     button.direction = digitalio.Direction.INPUT
     button.pull = digitalio.Pull.UP
@@ -48,7 +66,7 @@ def set_fader_to_app_value(app_index):
     """Simulate setting the potentiometer value to the app's stored volume."""
     global set_point
     if app_index is not None:
-        pot_value = app_volumes[app_index]
+        set_point = app_volumes[app_index]
 
 
 def read_buttons():
@@ -63,11 +81,12 @@ def send_serial_data_volumes():
     """Send data over USB serial in JSON format."""
     global app_volumes
     if serial and serial.connected:
-        serial.write(f"{app_volumes}\n".encode("utf-8"))
+        serial.write(json.dumps(app_volumes).encode("utf-8"))
+
 
 def send_data(data):
     if serial and serial.connected:
-        serial.write(f"{data}\n".encode("utf-8"))
+        serial.write(data.encode("utf-8"))
 
 
 def wait_for_start_signal():
@@ -79,7 +98,7 @@ def wait_for_start_signal():
             while True:
                 if serial.in_waiting > 0:
                     command = serial.readline().decode('utf-8').strip()
-                    if command is 'false':
+                    if command == 'false':
                         continue
                     # Parse initialization volumes from the command
                     try:
@@ -118,18 +137,18 @@ while True:
     set_point = read_fader()
 
     # Only send data if the app or pot value changes
-    if n is 6:
+    if n == 6:
         if serial.connected and serial.in_waiting > 0:
             command = serial.readline().decode('utf-8').strip()
             print(command)
-            if command.count('false') > 0:
+            if 'false' in command:
                 send_data('true')
         elif not serial.connected:
             print('Connection lost')
             wait_for_start_signal()
         n = 0
 
-    if n%2 is 0:
+    if n % 2 == 0:
         send_serial_data_volumes()
         print('Sent Periodic')
         last_app = current_app

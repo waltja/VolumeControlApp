@@ -2,6 +2,7 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
+import json
 
 
 class SerialHandler:
@@ -26,14 +27,22 @@ class SerialHandler:
             try:
                 self.serial = serial.Serial(port, self.baudrate, timeout=1)
                 self.log(f"Connected to Feather on port {port}")
-                self.send_data(volumes)
+
+                # Send a reset command
+                self.serial.write(b'reset\n')
+
                 while True:
                     if self.serial.in_waiting > 0:
-                        print(self.serial.readline().decode('utf-8'))
-                        if self.serial.readline().decode('utf-8').count('true') > 0:
-                            break
-                        else:
-                            self.send_data('false')
+                        data = self.serial.readline().decode('utf-8').strip()
+                        self.log(f"Received: {data}")
+                        if self.callback:
+                            self.callback(data)
+                        try:
+                            parsed_volumes = eval(data)
+                            if len(parsed_volumes) == 6 and parsed_volumes != self.volumes:
+                                self.volumes = parsed_volumes
+                        except Exception as e:
+                            self.log(f"Serial exception: {e}")
                     time.sleep(1)
                 return True
             except serial.SerialException as e:
@@ -68,12 +77,12 @@ class SerialHandler:
                     data = self.serial.readline().decode('utf-8').strip()
                     self.log(f"Received: {data}")
                     if self.callback:
-                        self.callback(f'Received: {data}')
+                        self.callback(data)
                     try:
-                        data = eval(data)
-                        if len(data) == 6 and data != self.volumes:
-                            self.volumes = data
-                    except NameError as e:
+                        parsed_volumes = eval(data)
+                        if len(parsed_volumes) == 6 and parsed_volumes != self.volumes:
+                            self.volumes = parsed_volumes
+                    except Exception as e:
                         self.log(f"Serial exception: {e}")
             except serial.SerialException as e:
                 self.log(f"Serial exception: {e}")
@@ -83,7 +92,7 @@ class SerialHandler:
     def send_data(self, data):
         if self.serial and self.serial.is_open:
             try:
-                self.serial.write(f"{data}\n".encode('utf-8'))
+                self.serial.write(json.dumps(data).encode('utf-8'))
                 self.log(f"Sent: {data}")
             except serial.SerialException as e:
                 self.log(f"Failed to send data: {e}")
