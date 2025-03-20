@@ -1,6 +1,7 @@
+import time
+
 import serial_comms
 import volume_control
-
 
 def callback(data):
     print(data)
@@ -13,22 +14,14 @@ def run_background_task():
     comms = serial_comms.SerialHandler(callback=callback)
     controller = volume_control.VolumeController()
 
-    while True:
-        comms.send_data('true')
-        print(comms.list_available_ports())
-    # # Initialize Serial Communication
-    # while True:
-    #     if comms.connect_to_feather(app_volumes):
-    #         print('Yippepepepepepepe')
-    #         comms.start()
-    #         break
+    while not comms.connect_to_feather():
+        print('waiting')
+        time.sleep(2)
 
+    comms.start()
 
     # Start Volume Control
-    # controller.volume_control_loop(comms, app_names, callback=callback)
-
-
-
+    controller.volume_control_loop(comms, app_names, callback=callback)
 
 if __name__ == "__main__":
     print('starting')

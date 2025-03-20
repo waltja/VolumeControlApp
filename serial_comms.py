@@ -5,62 +5,65 @@ import time
 import json
 
 
+def list_available_ports():
+    return [port.device for port in serial.tools.list_ports.comports()]
+
+
 class SerialHandler:
     def __init__(self, baudrate=115200, callback=None):
         self.baudrate = baudrate
         self.callback = callback
         self.serial = None
         self.running = False
-        self.thread = None
+        self.thread_listen = None
+        self.thread_app = None
+        self.current_app = None
         self.logs = []
-        self.volumes = []
+        self.values = []
 
-    def log(self, message):
-        self.logs.append(message)
-
-    def list_available_ports(self):
-        return [port.device for port in serial.tools.list_ports.comports()]
-
-    def connect_to_feather(self, volumes):
-        available_ports = self.list_available_ports()
+    def connect_to_feather(self):
+        available_ports = list_available_ports()
         for port in available_ports:
             try:
                 self.serial = serial.Serial(port, self.baudrate, timeout=1)
-                self.log(f"Connected to Feather on port {port}")
-
                 # Send a reset command
                 self.serial.write(b'reset\n')
 
                 while True:
                     if self.serial.in_waiting > 0:
                         data = self.serial.readline().decode('utf-8').strip()
-                        self.log(f"Received: {data}")
                         if self.callback:
                             self.callback(data)
                         try:
                             parsed_volumes = eval(data)
-                            if len(parsed_volumes) == 6 and parsed_volumes != self.volumes:
-                                self.volumes = parsed_volumes
+                            if len(parsed_volumes) == 6:
+                                self.values = parsed_volumes
+                                break
                         except Exception as e:
-                            self.log(f"Serial exception: {e}")
+                            self.callback(e)
+                    else:
+                        self.send_data('true')
                     time.sleep(1)
                 return True
             except serial.SerialException as e:
-                self.log(f"Failed to connect on port {port}: {e}")
+                self.callback(e)
         self.serial = None
-        time.sleep(1)
         return False
 
     def start(self):
         if not self.running:
             self.running = True
-            self.thread = threading.Thread(target=self.listen_for_data, daemon=True)
-            self.thread.start()
+            self.thread_listen = threading.Thread(target=self.listen_for_data, daemon=True)
+            self.thread_app = threading.Thread(target=self.set_current_app, daemon=True)
+            self.thread_listen.start()
+            self.thread_app.start()
 
     def stop(self):
         self.running = False
-        if self.thread:
-            self.thread.join()
+        if self.thread_listen:
+            self.thread_listen.join()
+        if self.thread_app:
+            self.thread_app.join()
         if self.serial:
             self.serial.close()
             self.serial = None
@@ -68,48 +71,36 @@ class SerialHandler:
     def listen_for_data(self):
         while self.running:
             if not self.serial or not self.serial.is_open:
-                self.log("No connection. Scanning for available COM ports...")
+                self.callback("No connection. Scanning for available COM ports...")
                 if not self.connect_to_feather():
                     time.sleep(5)  # Retry every 5 seconds
                     continue
             try:
                 if self.serial.in_waiting > 0:
                     data = self.serial.readline().decode('utf-8').strip()
-                    self.log(f"Received: {data}")
                     if self.callback:
                         self.callback(data)
                     try:
                         parsed_volumes = eval(data)
-                        if len(parsed_volumes) == 6 and parsed_volumes != self.volumes:
-                            self.volumes = parsed_volumes
+                        if len(parsed_volumes) == 6:
+                            self.values = parsed_volumes
                     except Exception as e:
                         self.log(f"Serial exception: {e}")
             except serial.SerialException as e:
-                self.log(f"Serial exception: {e}")
+                self.callback(e)
                 self.serial.close()
                 self.serial = None
+
+
+    def set_current_app(self):
+        while self.running:
+            self.current_app = self.values.index(True, 1)-1
 
     def send_data(self, data):
         if self.serial and self.serial.is_open:
             try:
                 self.serial.write(json.dumps(data).encode('utf-8'))
-                self.log(f"Sent: {data}")
+                self.callback(f"Sent: {data}")
             except serial.SerialException as e:
-                self.log(f"Failed to send data: {e}")
+                self.callback(f"Failed to send data: {e}")
 
-    def get_logs(self):
-        return self.logs
-
-
-available_ports = [port.device for port in serial.tools.list_ports.comports()]
-print(available_ports)
-for port in available_ports:
-    try:
-        serials = serial.Serial(port, 115200, timeout=1)
-        break
-    except Exception:
-        pass
-while True:
-    if serials.in_waiting > 0:
-        data = serials.readline().decode('utf-8').strip()
-        print(data)

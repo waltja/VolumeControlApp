@@ -31,7 +31,20 @@ class VolumeController:
         print(f"App {app_name} not found.")
         return False
 
-    def update_volumes(self, app_volumes, app_names):
+    def get_volume(self, app_name):
+        """Get the volume for a specific app."""
+        for session in self.sessions:
+            if session.Process and session.Process.name() == app_name:
+                try:
+                    # Query the ISimpleAudioVolume interface
+                    volume_interface = session._ctl.QueryInterface(ISimpleAudioVolume)
+                    return volume_interface.GetMasterVolumeLevel()
+                except Exception as e:
+                    print(f"Error setting volume for {app_name}: {e}")
+        print(f"App {app_name} not found.")
+        return False
+
+    def update_volumes(self, app_names, app_volumes):
         """Update volumes for a list of apps."""
         for app_name, volume in zip(app_names, app_volumes):
             if not self.set_volume(app_name, volume):
@@ -39,25 +52,13 @@ class VolumeController:
                 self.refresh_sessions()
 
     # Main loop to process volume updates
-    def volume_control_loop(self, serial_handler, app_names, callback=None):
+    def volume_control_loop(self, serial_handler, app_names, app_volumes, callback=None):
         """Continuously listens for data from serial_comm and updates app volumes."""
-        print("Volume controller initialized.")
-        app_volumes = []
+        callback("Volume controller initialized.")
+        for i, app in enumerate(app_names):
+            app_volumes[i] = self.get_volume(app)
         while True:
             # Check for incoming serial data
-            if app_volumes != serial_handler.volumes:
-                try:
-                    app_volumes = serial_handler.volumes
-                    if isinstance(app_volumes, list) and len(app_volumes) == len(app_names):
-                        if callback:
-                            callback(f"Received volume data: {app_volumes}")
-                        self.update_volumes(app_volumes, app_names)
-                    else:
-                        if callback:
-                            callback(f"Invalid data format received: {serial_handler.volumes}")
-                except Exception as e:
-                    if callback:
-                        callback(f"Error processing serial data: {e}")
-
+            current_app = serial_handler.current_app
+            self.set_volume(app_names[current_app], int(serial_handler.values[0]))
             time.sleep(0.1)  # Small delay to prevent busy-waiting
-
