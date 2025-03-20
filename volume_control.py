@@ -1,5 +1,4 @@
 import time
-
 from pycaw.pycaw import ISimpleAudioVolume
 from pycaw.pycaw import AudioUtilities
 

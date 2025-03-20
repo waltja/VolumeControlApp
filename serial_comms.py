@@ -99,3 +99,17 @@ class SerialHandler:
 
     def get_logs(self):
         return self.logs
+
+
+available_ports = [port.device for port in serial.tools.list_ports.comports()]
+print(available_ports)
+for port in available_ports:
+    try:
+        serials = serial.Serial(port, 115200, timeout=1)
+        break
+    except Exception:
+        pass
+while True:
+    if serials.in_waiting > 0:
+        data = serials.readline().decode('utf-8').strip()
+        print(data)

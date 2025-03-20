@@ -1,5 +1,3 @@
-import time
-
 import serial_comms
 import volume_control
 
@@ -15,19 +13,23 @@ def run_background_task():
     comms = serial_comms.SerialHandler(callback=callback)
     controller = volume_control.VolumeController()
 
-    # Initialize Serial Communication
     while True:
-        if comms.connect_to_feather(app_volumes):
-            print('Yippepepepepepepe')
-            comms.start()
-            break
+        comms.send_data('true')
+        print(comms.list_available_ports())
+    # # Initialize Serial Communication
+    # while True:
+    #     if comms.connect_to_feather(app_volumes):
+    #         print('Yippepepepepepepe')
+    #         comms.start()
+    #         break
 
 
     # Start Volume Control
-    controller.volume_control_loop(comms, app_names, callback=callback)
+    # controller.volume_control_loop(comms, app_names, callback=callback)
 
 
-from pycaw.api.audioclient import ISimpleAudioVolume
+
 
 if __name__ == "__main__":
+    print('starting')
     run_background_task()
