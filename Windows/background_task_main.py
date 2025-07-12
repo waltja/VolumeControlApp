@@ -4,8 +4,8 @@ import serial_comms
 import volume_control
 
 
-def callback(data):
-    print(data)
+def callback(call):
+    print(call)
 
 
 def run_background_task():
@@ -17,7 +17,7 @@ def run_background_task():
 
     # Initialize Serial Communication
     while True:
-        if comms.connect_to_feather(app_volumes):
+        if comms.connect(app_volumes):
             print('Yippepepepepepepe')
             comms.start()
             break
