@@ -6,14 +6,13 @@ import volume_control
 def callback(call):
     print(call)
 
-
 app_names = ["Spotify.exe", "Discord.exe", "opera.exe", "vlc.exe", "notepad.exe", "zoom.exe"]
 app_volumes = [40, 100, 20, 100, 100, 100]
 
-comms = SerialHandler(callback=callback, volumes=app_volumes)
-controller = volume_control.VolumeController()
+comms = SerialHandler(volumes=app_volumes, callback=callback)
+controller = volume_control.VolumeController(serial_handler=comms, app_names=app_names, callback=callback)
 
-async def innit_comms(comms):
+async def innit():
     # Initialize Serial Communication
     while True:
         if await comms.connect():
@@ -22,15 +21,8 @@ async def innit_comms(comms):
 
 if __name__ == "__main__":
 
-    asyncio.run(innit_comms(comms))
+    asyncio.run(innit())
 
-    # controller.volume_control_loop(comms, app_names, callback=callback)
-
-    while True:
-        if not comms.running:
-            comms.stop_thread()
-            print('Comms thread exited, restarting')
-        if not controller.running:
-            comms.stop_thread()
-            print('Comms thread exited, restarting')
+    controller.running = True
+    controller.volume_loop()
 

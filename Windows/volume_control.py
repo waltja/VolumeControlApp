@@ -1,30 +1,28 @@
+import threading
 import time
-
-from pycaw.pycaw import ISimpleAudioVolume
 from pycaw.pycaw import AudioUtilities
 
 
 class VolumeController:
-    def __init__(self):
-        self.sessions = None
-        self.initialize_sessions()
-
-    def initialize_sessions(self):
-        """Initialize audio sessions."""
+    def __init__(self, serial_handler=None, app_names=None, callback=None):
         self.sessions = AudioUtilities.GetAllSessions()
+        self.running = False
+        self.thread = None
+        self.serial_handler = serial_handler
+        self.app_names = app_names
+        self.callback = callback
 
     def refresh_sessions(self):
         """Refresh the session manager to detect new apps."""
-        self.initialize_sessions()
+        self.sessions = AudioUtilities.GetAllSessions()
 
     def set_volume(self, app_name, volume):
         """Set the volume for a specific app."""
         for session in self.sessions:
             if session.Process and session.Process.name() == app_name:
                 try:
-                    # Query the ISimpleAudioVolume interface
-                    volume_interface = session._ctl.QueryInterface(ISimpleAudioVolume)
-                    volume_interface.SetMasterVolume(volume / 100.0, None)
+                    volume_device = session.SimpleAudioVolume
+                    volume_device.SetMasterVolume(volume / 100, None)
                     print(f"Set volume for {app_name} to {volume}%")
                     return True
                 except Exception as e:
@@ -32,33 +30,40 @@ class VolumeController:
         print(f"App {app_name} not found.")
         return False
 
-    def update_volumes(self, app_volumes, app_names):
+    def update_volumes(self, app_volumes):
         """Update volumes for a list of apps."""
-        for app_name, volume in zip(app_names, app_volumes):
+        for app_name, volume in zip(self.app_names, app_volumes):
             if not self.set_volume(app_name, volume):
-                print(f"Failed to update volume for {app_name}. Refreshing sessions.")
+                print(f"Failed to update volume for {app_name}.")
                 self.refresh_sessions()
 
-    # Main loop to process volume updates
-    def volume_control_loop(self, serial_handler, app_names, callback=None):
-        """Continuously listens for data from serial_comm and updates app volumes."""
-        print("Volume controller initialized.")
-        app_volumes = []
-        while True:
-            # Check for incoming serial data
-            if app_volumes != serial_handler.volumes:
-                try:
-                    app_volumes = serial_handler.volumes
-                    if isinstance(app_volumes, list) and len(app_volumes) == len(app_names):
-                        if callback:
-                            callback(f"Received volume data: {app_volumes}")
-                        self.update_volumes(app_volumes, app_names)
-                    else:
-                        if callback:
-                            callback(f"Invalid data format received: {serial_handler.volumes}")
-                except Exception as e:
-                    if callback:
-                        callback(f"Error processing serial data: {e}")
+    def start_thread(self):
+        """Begins the thread for func 'volume_loop' """
+        if not self.running:
+            self.running = True
+            self.thread = threading.Thread(target=self.volume_loop, daemon=True)
+            self.thread.start()
 
-            time.sleep(0.1)  # Small delay to prevent busy-waiting
+    def stop_thread(self):
+        """Ends the thread for func 'volume_loop' """
+        self.running = False
+        if self.thread:
+            self.thread.join()
+
+    # Main loop to process volume updates
+    def volume_loop(self):
+        """Continuously checks for new data from serial_comm and updates app volumes."""
+        app_volumes = self.serial_handler.volumes
+        self.update_volumes(app_volumes)
+        while self.running:
+            # Check for incoming serial data
+            if app_volumes != self.serial_handler.volumes:
+                try:
+                    for ax, app in enumerate(self.app_names):
+                        if app_volumes[ax] is not self.serial_handler.volumes[ax]:
+                            app_volumes[ax] = self.serial_handler.volumes[ax]
+                            self.set_volume(app, app_volumes[ax])
+                except Exception as e:
+                    self.callback(f"Error updating serial data: {e}")
+            time.sleep(0.01)  # Small delay to prevent busy-waiting
 

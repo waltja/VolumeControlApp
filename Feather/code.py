@@ -125,11 +125,10 @@ def innit():
 
 """----------------------------------------------------------------------------------------"""
 
-"""
 # Wait for the start signal and initialize volumes
 innit()
 
-fast_interval = 0.01
+fast_interval = 0.001
 slow_interval = 0.1
 last_fast = last_slow = time.monotonic()
 
@@ -142,25 +141,23 @@ while True:
     if now - last_fast >= fast_interval:
         last_fast = now
 
-        # Read buttons and if any are active and new, reset set_point and update current_app
-        for idx, button in enumerate(buttons):
-            if not button.value:  # pressed (active low)
-                if idx != current_app:
-                    # switch LED
-                    button_leds[current_app].value = False
-                    button_leds[idx].value = True
-                    current_app = idx
-                    set_point = app_volumes[current_app]
-                    print(f"App→{current_app}, set_point={set_point}")
-                break
+        new = read_buttons()
+        if new != current_app and new is not None:
+            # switch LED
+            button_leds[current_app].value = False
+            button_leds[new].value = True
+            current_app = new
+            set_point = app_volumes[current_app]
+            print(f"App→{current_app}, set_point={set_point}")
 
-        # If current position is not set_point, set motor to move towards
         pos = read_fader()
         if not touch.value:
-            if pos < set_point:
+            if pos+set_var < set_point:
                 motor_forward()
-            elif pos > set_point:
+            elif pos-set_var > set_point:
                 motor_backward()
+            else:
+                motor_stop()
         else:
             motor_stop()
 
@@ -168,51 +165,18 @@ while True:
     if now - last_slow >= slow_interval:
         last_slow = now
 
-        pos = read_fader() + set_low
+        pos = read_fader()
         # if user moved the fader off the motor’s target:
-        if pos != set_point:
+        if pos != set_point and motor_fwd.value is motor_bwd.value:
             set_point = pos
             app_volumes[current_app] = pos
             # send updated list back to PC
             if serial and serial.connected:
                 send_volumes()
             print("Sent new volumes:", app_volumes)
+
+        if serial and not serial.connected:
+            print('Lost connections, retrying')
+            innit()
     
-    time.sleep(0.001)
-"""
-
-
-while True:
-    # if not serial.connected:
-    #     print('Connections lost, retrying\n')
-    #     innit()
-    # # send_volumes()
-    # # print('Sent Periodic')
-    print()
-    print(str(read_fader()))
-    # print(str(touch.value))
-    print(read_buttons())
-    # for button in buttons:
-    #     print(str(button.value))
-    print()
-    # time.sleep(0.5)  # Avoid flooding the serial connection
-
-    new = read_buttons()
-    if new != current_app and new is not None:
-        # switch LED
-        button_leds[current_app].value = False
-        button_leds[new].value = True
-        current_app = new
-        set_point = app_volumes[current_app]
-        print(f"App→{current_app}, set_point={set_point}")
-
-    pos = read_fader()
-    if not touch.value:
-        if pos+set_var < set_point:
-            motor_forward()
-        elif pos-set_var > set_point:
-            motor_backward()
-        else:
-            motor_stop()
-    else:
-        motor_stop()
+    time.sleep(0.0001)

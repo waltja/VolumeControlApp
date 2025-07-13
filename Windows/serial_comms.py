@@ -76,10 +76,7 @@ class SerialHandler:
         """Ends the thread for func 'data_loop'"""
         self.running = False
         if self.thread:
-            try:
-                self.thread.join()
-            except RuntimeError:
-                pass
+            self.thread.join()
         if self.serial:
             self.serial.close()
 
