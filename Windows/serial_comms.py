@@ -36,7 +36,7 @@ class SerialHandler:
         """Sends 'data' over current serial port"""
         if self.serial and self.serial.is_open:
             try:
-                self.serial.write(f"{data}\n".encode())
+                self.serial.write(f"{data}\r\n".encode())
                 self.callback(f"Sent: {data}")
             except serial.SerialException as e:
                 self.callback(f"Failed to send data: {e}")
@@ -48,31 +48,38 @@ class SerialHandler:
             ser = await asyncio.to_thread(serial.Serial, port, self.baudrate, timeout=1)
             self.callback(f"Connected to device on port {port}")
         except Exception as e:
+            if 'PermissionError' in str(e):
+                return False
             self.callback(f"Failed to connect on port {port}: {e}")
             return False
 
         # Looks for incoming data and checks if it is "ack" signal and then if it contains "sack"
         try:
             await asyncio.wait_for(_wait_for_marker(ser, b"ack", 5.0), 10)
-            await asyncio.to_thread(ser.write, f"{self.volumes}\n".encode())
+            await asyncio.to_thread(ser.write, f"{self.volumes}\r\n".encode())
             await asyncio.wait_for(_wait_for_marker(ser, b"sack", 5.0), 10)
+            self.serial = ser
+            return True
         except asyncio.TimeoutError:
             self.callback(f"Handshake timed out on {port}")
             await asyncio.to_thread(ser.close)
             return False
 
     def start_thread(self):
-        """Begins the thread for func 'listen_for_data'"""
+        """Begins the thread for func 'data_loop'"""
         if not self.running:
             self.running = True
-            self.thread = threading.Thread(target=self.listen_for_data, daemon=True)
+            self.thread = threading.Thread(target=self.data_loop, daemon=True)
             self.thread.start()
 
     def stop_thread(self):
-        """Ends the thread for func 'listen_for_data'"""
+        """Ends the thread for func 'data_loop'"""
         self.running = False
         if self.thread:
-            self.thread.join()
+            try:
+                self.thread.join()
+            except RuntimeError:
+                pass
         if self.serial:
             self.serial.close()
 
@@ -93,17 +100,17 @@ class SerialHandler:
         # If all ports are exhausted, exit
         return False
 
-    def listen_for_data(self):
+    def data_loop(self):
         """Listens for an incoming line and if it is new, adjust volumes"""
         while self.running:
             if not self.serial or not self.serial.is_open:
-                self.callback("No connection. Scanning for available COM ports...")
-                if not self.connect():
+                self.callback("No connection or connections lost, rescanning COM ports.")
+                if not asyncio.run(self.connect()):
                     time.sleep(5)  # Retry every 5 seconds
                     continue
             try:
                 if self.serial.in_waiting > 0:
-                    data = self.serial.readline().decode('utf-8').strip().replace('sack', '')
+                    data = self.serial.readline().decode().strip().replace('sack', '')
                     self.callback(f"{data}")
                     try:
                         data = eval(data)
@@ -113,4 +120,5 @@ class SerialHandler:
                         self.callback(f"Serial exception: {e}")
             except serial.SerialException as e:
                 self.callback(f"Serial exception: {e}")
-                self.stop_thread()
+                self.running = False
+            time.sleep(0.1)
