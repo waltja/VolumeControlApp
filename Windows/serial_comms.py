@@ -31,6 +31,7 @@ class SerialHandler:
         self.volumes = volumes
         self.running = False
         self.thread = None
+        self.dead = False
 
     def send_data(self, data):
         """Sends 'data' over current serial port"""
@@ -97,17 +98,35 @@ class SerialHandler:
         # If all ports are exhausted, exit
         return False
 
+    def check_connection(self):
+        """Sends a check to the feather, if NACK set 'dead' flag"""
+        data = 'ack'
+        if self.serial and self.serial.is_open:
+            try:
+                self.serial.write(f"{data}\r\n".encode())
+                self.callback(f"Sent: {data}")
+            except serial.SerialException as e:
+                self.callback(f"Failed to send data: {e}")
+
+
     def data_loop(self):
         """Listens for an incoming line and if it is new, adjust volumes"""
+        last = time.monotonic()
         while self.running:
-            if not self.serial or not self.serial.is_open:
+            if not self.serial or not self.serial.is_open or self.dead:
                 self.callback("No connection or connections lost, rescanning COM ports.")
                 if not asyncio.run(self.connect()):
-                    time.sleep(5)  # Retry every 5 seconds
+                    time.sleep(2)  # Retry every 5 seconds
                     continue
+            if time.monotonic() - last > 15:
+                last = time.monotonic()
+                self.dead = True
             try:
                 if self.serial.in_waiting > 0:
-                    data = self.serial.readline().decode().strip().replace('sack', '')
+                    data = self.serial.readline().decode().strip()
+                    if data.count('sack') > 0:
+                        data.replace('sack', '')
+                        last = time.monotonic()
                     self.callback(f"{data}")
                     try:
                         data = eval(data)

@@ -11,6 +11,7 @@ class VolumeController:
         self.serial_handler = serial_handler
         self.app_names = app_names
         self.callback = callback
+        self.errors = 0
 
     def refresh_sessions(self):
         """Refresh the session manager to detect new apps."""
@@ -28,6 +29,9 @@ class VolumeController:
                 except Exception as e:
                     print(f"Error setting volume for {app_name}: {e}")
         print(f"App {app_name} not found.")
+        if self.errors > 10:
+            self.refresh_sessions()
+            self.errors = 0
         return False
 
     def update_volumes(self, app_volumes):

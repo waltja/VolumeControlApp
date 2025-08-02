@@ -7,7 +7,7 @@ def callback(call):
     print(call)
 
 app_names = ["Spotify.exe", "Discord.exe", "opera.exe", "vlc.exe", "notepad.exe", "zoom.exe"]
-app_volumes = [40, 100, 20, 100, 100, 100]
+app_volumes = [40, 100, 20, 50, 50, 50]
 
 comms = SerialHandler(volumes=app_volumes, callback=callback)
 controller = volume_control.VolumeController(serial_handler=comms, app_names=app_names, callback=callback)
