@@ -83,7 +83,7 @@ def send_volumes():
     """Send current app_volumes over serial"""
     global app_volumes
     if serial and serial.connected:
-        serial.write(f"{app_volumes}sack\r\n".encode())
+        serial.write(f"{app_volumes}\r\n".encode())
 
 def send_data(data):
     if serial and serial.connected:
@@ -129,13 +129,12 @@ innit()
 
 fast_interval = 0.001
 slow_interval = 0.1
-last_fast = last_slow = time.monotonic()
+last_fast = last_slow = periodic = time.monotonic()
 
 # ----Main Loop----
 while True:
 
     now = time.monotonic()
-    periodic = now
 
     # FAST TASKS
     if now - last_fast >= fast_interval:
@@ -182,5 +181,6 @@ while True:
     # PERIODIC
     if now - periodic > 5:
         send_data('ack')
+        periodic = now
     
     time.sleep(0.0001)

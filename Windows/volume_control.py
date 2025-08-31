@@ -32,6 +32,8 @@ class VolumeController:
         if self.errors > 10:
             self.refresh_sessions()
             self.errors = 0
+        else:
+            self.errors += 1
         return False
 
     def update_volumes(self, app_volumes):

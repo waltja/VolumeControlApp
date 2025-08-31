@@ -13,14 +13,17 @@ def list_available_ports():
 async def _wait_for_marker(ser, marker, timeout):
     """Wait up to `timeout` seconds for a line containing `marker`."""
     end = asyncio.get_event_loop().time() + timeout
-    while True:
-        if asyncio.get_event_loop().time() > end:
-            raise asyncio.TimeoutError()
-        if await asyncio.to_thread(lambda: ser.in_waiting > 0):
-            line = await asyncio.to_thread(ser.readline)
-            if marker in line:
-                return
-        await asyncio.sleep(0.05)
+    try:
+        while True:
+            if asyncio.get_event_loop().time() > end:
+                raise asyncio.TimeoutError()
+            if await asyncio.to_thread(lambda: ser.in_waiting > 0):
+                line = await asyncio.to_thread(ser.readline)
+                if marker in line:
+                    return
+            await asyncio.sleep(0.05)
+    except Exception as e:
+        print(e)
 
 
 class SerialHandler:
@@ -121,19 +124,21 @@ class SerialHandler:
             if time.monotonic() - last > 15:
                 last = time.monotonic()
                 self.dead = True
+                self.callback("Port died")
             try:
                 if self.serial.in_waiting > 0:
-                    data = self.serial.readline().decode().strip()
-                    if data.count('sack') > 0:
-                        data.replace('sack', '')
-                        last = time.monotonic()
+                    data = str(self.serial.readline().decode()).strip()
                     self.callback(f"{data}")
-                    try:
-                        data = eval(data)
-                        if len(data) == 6 and data != self.volumes:
-                            self.volumes = data
-                    except NameError as e:
-                        self.callback(f"Serial exception: {e}")
+                    if data.count('ack') > 0:
+                        data = data.replace('ack', '')
+                        last = time.monotonic()
+                    if len(data) != 0:
+                        try:
+                            data = eval(data)
+                            if len(data) == 6 and data != self.volumes:
+                                self.volumes = data
+                        except NameError as e:
+                            self.callback(f"Serial exception: {e}")
             except serial.SerialException as e:
                 self.callback(f"Serial exception: {e}")
                 self.running = False
